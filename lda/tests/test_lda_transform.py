@@ -35,37 +35,40 @@ class TestLDATransform(oslotest.base.BaseTestCase):
         dtm = self.dtm
         doc_topic = self.doc_topic
 
-        # TODO: test several documents
-        test_index = 0
-        dtm_test = dtm[test_index]
-        doc_topic_test_true = doc_topic[test_index]
-        doc_topic_test = np.atleast_2d(model.transform(dtm_test))[0]
-        self.assertAlmostEqual(sum(doc_topic_test), 1)
+        n_docs = 10
+        dtm_test = dtm[:n_docs]
+        doc_topic_test_true = doc_topic[:n_docs]
+        doc_topic_test = model.transform(dtm_test)
 
         S = 2000
         kl_div_dist = np.empty(S)
         np.random.seed(random_seed)
         for s in range(S):
+            p = doc_topic_test_true[np.random.choice(len(doc_topic_test_true))]
             q = doc_topic[np.random.choice(len(doc_topic))]
             # scipy.stats.entropy(p, q) calculates Kullback-Leibler divergence
-            kl_div_dist[s] = scipy.stats.entropy(doc_topic_test_true, q)
-        quantiles = scipy.stats.mstats.mquantiles(kl_div_dist, prob=np.linspace(0, 1, 100, endpoint=False))
-        kl_div = scipy.stats.entropy(doc_topic_test_true, doc_topic_test)
-        quantile = np.searchsorted(quantiles, kl_div) / len(quantiles)
-        self.assertLessEqual(quantile, 0.01)
+            kl_div_dist[s] = scipy.stats.entropy(p, q)
+        quantiles = scipy.stats.mstats.mquantiles(kl_div_dist, prob=np.linspace(0, 1, 500, endpoint=False))
+
+        for p, q in zip(doc_topic_test_true, doc_topic_test):
+            kl_div = scipy.stats.entropy(p, q)
+            quantile = np.searchsorted(quantiles, kl_div) / len(quantiles)
+            self.assertLessEqual(quantile, 0.06)
 
     def test_lda_transform_basic(self):
         """Basic checks on transform"""
-        random_seed = self.random_seed
         model = self.model
         dtm = self.dtm
-        doc_topic = self.doc_topic
 
         n_docs = 3
         n_topics = len(model.components_)
         dtm_test = dtm[0:n_docs]
         doc_topic_test = model.transform(dtm_test)
         self.assertEqual(doc_topic_test.shape, (n_docs, n_topics))
+        np.testing.assert_equal(doc_topic_test.sum(axis=1), 1)
+
+        # one document
         dtm_test = dtm[0]
         doc_topic_test = model.transform(dtm_test)
         self.assertEqual(doc_topic_test.shape, (1, n_topics))
+        np.testing.assert_equal(doc_topic_test.sum(axis=1), 1)
